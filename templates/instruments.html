@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% block title %}Instruments{% endblock %}
+{% block content %}
+<h1>Instrument bridge</h1>
+<p class="sub">Register real instruments and receive their data over HTTP (<code>POST /api/ingest</code>) or the TCP listener
+(<code>{{ bridge.host or '127.0.0.1' }}:{{ bridge.port or 5056 }}</code> — {{ 'running' if bridge.thread }}).
+Queued data is consumed the next time you run a bridge measurement in the UV-Vis console.</p>
+
+<section class="cards">
+  <div class="card stat"><span class="num">{{ rows|length }}</span><span>registered instruments</span></div>
+  <div class="card stat"><span class="num">{{ stats.pending }}</span><span>pending payloads</span></div>
+  <div class="card stat"><span class="num">{{ stats.total }}</span><span>total ingested</span></div>
+  <div class="card stat {{ 'ok' if bridge.thread }}"><span class="num">{{ 'ON' if bridge.thread else 'OFF' }}</span><span>TCP listener</span></div>
+</section>
+
+<div class="split">
+  <section>
+    <h2>Registered instruments</h2>
+    <table class="grid-table">
+      <thead><tr><th>Name</th><th>Vendor / model</th><th>Connection</th><th>API key</th><th></th></tr></thead>
+      <tbody>
+        {% for r in rows %}
+        <tr>
+          <td><strong>{{ r.name }}</strong>{% if r.serial %}<br><span class="hint">s/n {{ r.serial }}</span>{% endif %}</td>
+          <td>{{ r.vendor or '—' }} {{ r.model or '' }}</td>
+          <td class="mono">{{ r.connection }} {{ r.host }}:{{ r.port }}</td>
+          <td class="mono">{{ r.api_key[:10] }}…</td>
+          <td>
+            <form method="post" action="{{ url_for('instrument_delete', inst_id=r.id) }}" class="inlineform">
+              <button class="btn" type="submit">Remove</button>
+            </form>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="empty">No instruments yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <h2>Ingestion queue</h2>
+    <table class="grid-table">
+      <thead><tr><th>#</th><th>Instrument</th><th>Kind</th><th>Compound</th><th>State</th><th>Received</th></tr></thead>
+      <tbody>
+        {% for q in queue_rows %}
+        <tr>
+          <td>{{ q.id }}</td><td>{{ q.instrument or '?' }}</td><td>{{ q.kind }}</td>
+          <td>{{ q.compound or '—' }}</td>
+          <td>{% if q.consumed %}<span class="chip">consumed</span>{% else %}<span class="chip pub">pending</span>{% endif %}</td>
+          <td class="mono">{{ q.created_at }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" class="empty">Queue is empty.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>Register an instrument</h2>
+    <form class="form" method="post">
+      <fieldset>
+        <legend>Identity</legend>
+        <div class="row2">
+          <label>Name <input name="name" required placeholder="e.g. LC-2030 #3"></label>
+          <label>Vendor <input name="vendor" placeholder="e.g. Shimadzu"></label>
+        </div>
+        <div class="row2">
+          <label>Model <input name="model" placeholder="e.g. LC-2030"></label>
+          <label>Serial <input name="serial" placeholder="e.g. C34512300"></label>
+        </div>
+      </fieldset>
+      <fieldset>
+        <legend>Connection</legend>
+        <div class="row2">
+          <label>Transport
+            <select name="connection">
+              <option value="tcp">TCP push to this server</option>
+              <option value="http">HTTP POST from driver</option>
+            </select>
+          </label>
+          <label>Host <input name="host" value="127.0.0.1"></label>
+        </div>
+        <div class="row2">
+          <label>Port <input name="port" type="number" value="5056"></label>
+          <label></label>
+        </div>
+      </fieldset>
+      <button class="btn primary" type="submit">Register instrument</button>
+      <p class="hint">A unique API key is generated on registration — the driver authenticates with it.</p>
+    </form>
+
+    <h2>Driver SDK snippet</h2>
+    <pre class="codeblock">import json, socket, csv
+
+payload = {
+    "api_key": "&lt;your instrument API key&gt;",
+    "instrument": "{{ rows[0].name if rows else 'LC-2030 #3' }}",
+    "compound": "Caffeine",
+    "kind": "spectrum",
+    "csv": "wavelength_nm,absorbance_A\n200,0.012\n201,0.014\n...",   # or "points": [[x, y], ...]
+}
+
+# Option A — TCP (listener on {{ bridge.host or '127.0.0.1' }}:{{ bridge.port or 5056 }})
+with socket.create_connection(("127.0.0.1", 5056)) as s:
+    s.sendall(json.dumps(payload).encode() + b"\n")
+    print(s.recv(4096).decode())
+
+# Option B — HTTP
+# requests.post("http://127.0.0.1:5000/api/ingest", json=payload)</pre>
+    <p class="hint">A ready-to-run driver lives in <code>driver_example.py</code>: <code>python driver_example.py --demo --api-key KEY</code></p>
+  </section>
+</div>
+{% endblock %}

@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}World data{% endblock %}
+{% block content %}
+<h1>World system data</h1>
+<p class="sub">Everything the platform knows, in one place: live ledger statistics, the instrument catalogue, and the built-in UV reference data sheet library (literature values). All of it is available offline to every user of this instance — no vendor lock-in, no per-option license.</p>
+
+<section class="cards">
+  <div class="card stat"><span class="num">{{ stats.runs }}</span><span>runs recorded</span></div>
+  <div class="card stat ok"><span class="num">{{ stats.published }}</span><span>published globally</span></div>
+  <div class="card stat"><span class="num">{{ stats.labs }}</span><span>labs connected</span></div>
+  <div class="card stat"><span class="num">{{ stats.measurements }}</span><span>UV-Vis measurements</span></div>
+  <div class="card stat {{ 'bad' if stats.model_errors }}"><span class="num">{{ stats.model_errors }}</span><span>model mistakes acknowledged</span></div>
+  <div class="card stat warn"><span class="num">{{ stats.compounds }}</span><span>reference compounds</span></div>
+</section>
+
+<section>
+  <h2>Global outcome distribution</h2>
+  <table class="grid-table">
+    <thead><tr><th>Technique</th><th>Runs</th><th>Success</th><th>Failure</th><th>Invalid</th><th>Published</th></tr></thead>
+    <tbody>
+      {% for t in tech %}
+      <tr><td><strong>{{ t.technique }}</strong></td><td>{{ t.total }}</td><td class="ok-text">{{ t.ok }}</td>
+        <td class="bad-text">{{ t.fail }}</td><td class="warn-text">{{ t.inv or 0 }}</td><td>{{ t.pub or 0 }}</td></tr>
+      {% else %}
+      <tr><td colspan="6" class="empty">No runs yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+
+<section>
+  <h2>Instrument catalogue</h2>
+  <table class="grid-table">
+    <thead><tr><th>Model</th><th>Type</th><th>Range</th><th>Bandwidth</th><th>Detectors</th><th>Wavelength acc.</th><th>Best for</th></tr></thead>
+    <tbody>
+      {% for name, spec in instruments.items() %}
+      <tr>
+        <td><strong>{{ name }}</strong></td><td>{{ spec.type }}</td><td>{{ spec.range }}</td>
+        <td>{{ spec.bandwidth }}</td><td>{{ spec.detectors }}</td><td>± {{ spec.wl_accuracy }} nm</td>
+        <td>{{ spec.desc }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p class="hint">Catalogue entries summarise public Shimadzu material for orientation; verify limits against the official datasheet before spec work. LC/GC systems (LC-2030 Nexera, GC-2030, i-series) appear in the run recorder.</p>
+</section>
+
+<section>
+  <h2>Built-in UV data sheets — reference library</h2>
+  <div class="tracewrap">{{ preview|safe }}</div>
+  <div class="cards compounds">
+    {% for c in compounds %}
+    <a class="card compound" href="{{ url_for('world_compound', name=c['name']) }}">
+      <span class="cname">{{ c['name'] }}</span>
+      <span class="cmeta">{{ c['formula'] }} · CAS {{ c['cas'] }}</span>
+      <span class="clambda">λmax {{ c['lambda_max'] }} nm · ε {{ '{:,}'.format(c['eps']) }}</span>
+      <span class="cuse">{{ c['use'] }}</span>
+    </a>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}

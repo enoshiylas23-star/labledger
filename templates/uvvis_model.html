@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}Model integrity{% endblock %}
+{% block content %}
+<div class="detail-head">
+  <div>
+    <div class="eyebrow">Backend self-assessment</div>
+    <h1>Model integrity — the system's own error book</h1>
+  </div>
+  <div class="chips"><span class="chip pub">revision {{ state.revision }}</span></div>
+</div>
+<p class="sub">Every virtual measurement is compared with known ground truth. Whenever the platform performs worse than it promised, it records the mistake, names the cause, applies a correction, and widens its own claim — honestly. Corrections active now: wavelength calibration {{ state.wl_cal }} nm · stray-light correction {{ 'ON' if state.stray_corr else 'OFF' }} · noise scale ×{{ state.noise_scale }}.</p>
+
+<section class="cards">
+  <div class="card stat"><span class="num">{{ state.revision }}</span><span>model revision</span></div>
+  <div class="card stat {{ 'bad' if n_err else '' }}"><span class="num">{{ n_err }}</span><span>mistakes acknowledged</span></div>
+  <div class="card stat ok"><span class="num">{{ n_meas }}</span><span>virtual measurements</span></div>
+</section>
+
+<section>
+  <h2>Accuracy claims — promised vs observed</h2>
+  <table class="grid-table">
+    <thead><tr><th>Metric</th><th>Promised (±)</th><th>Observed mean error</th><th>Runs scored</th><th>Status</th></tr></thead>
+    <tbody>
+      {% for c in claims %}
+      <tr>
+        <td>{{ c.label }} ({{ c.unit }})</td>
+        <td>± {{ c.promised }}</td>
+        <td>{{ c.observed_mae }}</td>
+        <td>{{ c.n }}</td>
+        <td>
+          {% if c.n == 0 %}<span class="warn-text">unscored</span>
+          {% elif c.observed_mae <= c.promised * 0.7 %}<span class="ok-text">comfortably met</span>
+          {% elif c.observed_mae <= c.promised %}<span class="warn-text">tight — near limit</span>
+          {% else %}<span class="bad-text">claim was exceeded</span>{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+
+<section>
+  <h2>Acknowledged mistakes (append-only)</h2>
+  {% if errors %}
+  <table class="grid-table">
+    <thead><tr><th>#</th><th>When</th><th>Metric</th><th>Promised</th><th>Observed</th><th>Severity</th><th>Cause → correction</th><th>Run</th></tr></thead>
+    <tbody>
+      {% for e in errors %}
+      <tr>
+        <td>{{ loop.index }}</td>
+        <td class="mono">{{ e.created_at }}</td>
+        <td>{{ e.metric }}</td>
+        <td>± {{ e.promised }}</td>
+        <td class="bad-text">{{ e.observed }}</td>
+        <td><span class="chip {{ 'failure' if e.severity == 'high' else 'invalid' }}">{{ e.severity }}</span></td>
+        <td>{{ e.cause }} → {{ e.action }}</td>
+        <td>{% if e.measurement_id %}<a href="{{ url_for('uvvis_result', mid=e.measurement_id) }}">#{{ e.measurement_id }}</a> ({{ e.mode }}){% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="empty">No accuracy claim has been exceeded yet — run more measurements, especially with extreme absorbance or fast scan settings.</p>
+  {% endif %}
+</section>
+
+<section>
+  <h2>Current known limitations</h2>
+  <ul class="limits">
+    <li>Absorbance is modelled up to ~8 A; stray light dominates above 2 A on lower-end instruments.</li>
+    <li>Library is a curated set of {{ 14 }} reference compounds with literature ε values (±5 % typical), not a full spectral database.</li>
+    <li>Matrix effects are simulated statistically (scatter, pipetting, purity) — they approximate, not replace, a real sample.</li>
+    {% if state.noise_scale > 1 %}<li>Noise model was rescaled ×{{ state.noise_scale }} after measured repeatability exceeded the promise.</li>{% endif %}
+    {% if state.stray_corr %}<li>Stray-light correction is active after a recovery miss was acknowledged.</li>{% endif %}
+  </ul>
+</section>
+{% endblock %}

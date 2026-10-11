@@ -1,0 +1,491 @@
+{% extends "base.html" %}
+{% block title %}UV-Vis console{% endblock %}
+{% block content %}
+<div class="detail-head">
+  <div>
+    <div class="eyebrow">LabSolutions-style instrument control · virtual sample, no contact</div>
+    <h1>UV-Vis measurement console</h1>
+  </div>
+  <div class="chips">
+    <span class="chip pub">model rev {{ state.revision }}</span>
+    <a class="btn" href="{{ url_for('uvvis_model') }}">Model integrity</a>
+  </div>
+</div>
+<p class="sub">Run a full theoretical or practical test <strong>without touching a sample</strong>: pick an instrument, a reference compound and a measurement mode. Every result is checked against ground truth, and any accuracy miss is acknowledged and corrected in the backend.</p>
+
+<form class="form console" method="post" action="{{ url_for('uvvis_run') }}" id="uvform">
+  <div class="tabbar" role="tablist" aria-label="Console sections">
+    <button type="button" class="tabbtn on" data-tab="tab-params" role="tab">Parameters</button>
+    <button type="button" class="tabbtn" data-tab="tab-baseline" role="tab">Baseline setting</button>
+    <button type="button" class="tabbtn" data-tab="tab-cal" role="tab">System calibration</button>
+    <button type="button" class="tabbtn" data-tab="tab-quant" role="tab">Quantitation</button>
+    <button type="button" class="tabbtn" data-tab="tab-peak" role="tab">Active peak pick</button>
+  </div>
+
+  <div class="tabpane" id="tab-params" role="tabpanel">
+    <div class="console-grid">
+      <fieldset class="panel">
+        <legend>Instrument control</legend>
+        <label>Instrument
+          <select name="instrument" id="instrument">
+            {% for name, spec in instruments.items() %}
+            <option value="{{ name }}" {% if name == 'UV-1900i' %}selected{% endif %}>{{ name }} — {{ spec.type }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <div class="specbox" id="specbox">
+          {% for name, spec in instruments.items() %}
+          <div class="spec {% if name == 'UV-1900i' %}on{% endif %}" data-inst="{{ name }}">
+            <div><span>Range</span><b>{{ spec.range }}</b></div>
+            <div><span>Bandwidth</span><b>{{ spec.bandwidth }}</b></div>
+            <div><span>Detectors</span><b>{{ spec.detectors }}</b></div>
+            <div><span>Photometric</span><b>{{ spec.photon_range }}</b></div>
+            <div><span>Wavelength accuracy</span><b>± {{ spec.wl_accuracy }} nm</b></div>
+            <div><span>Stray light</span><b>{{ (spec.stray * 100) | round(2) }} %</b></div>
+            <p class="specdesc">{{ spec.desc }}</p>
+          </div>
+          {% endfor %}
+        </div>
+        <div class="row2">
+          <label>Scan speed
+            <select name="speed">
+              <option value="slow">Slow (best noise)</option>
+              <option value="medium" selected>Medium</option>
+              <option value="fast">Fast (fastest, noisiest)</option>
+            </select>
+          </label>
+          <label>Spectral bandwidth (nm)
+            <input name="bandwidth_nm" type="number" step="0.1" min="0.1" max="5" value="1.0">
+          </label>
+        </div>
+      </fieldset>
+
+      <fieldset class="panel">
+        <legend>Method — measurement mode</legend>
+        <div class="modes">
+          {% for m in modes %}
+          <label class="modeopt">
+            <input type="radio" name="mode" value="{{ m }}" {% if m == preset_mode %}checked{% endif %}>
+            <span>{{ m }}</span>
+          </label>
+          {% endfor %}
+        </div>
+        <div class="row2">
+          <label>Wavelength start (nm)<input name="wl_start" type="number" value="200" min="185" max="1100"></label>
+          <label>Wavelength end (nm)<input name="wl_end" type="number" value="800" min="190" max="1100"></label>
+        </div>
+        <div class="row2">
+          <label>Data interval (nm)<input name="step_nm" type="number" step="0.5" value="2" min="0.2"></label>
+          <label>Method wavelength (nm)<input name="method_wl" id="method_wl" type="number" value="272" placeholder="defaults to library lambda max"></label>
+        </div>
+        <div class="row2">
+          <label>Readings (photometric mode)<input name="readings" type="number" value="10" min="3"></label>
+          <label>Interval (s)<input name="interval_s" type="number" value="30" min="1"></label>
+        </div>
+        <label>Time course duration (min)<input name="t_end_min" type="number" value="30" min="1"></label>
+      </fieldset>
+
+      <fieldset class="panel">
+        <legend>Sample — measured without contact</legend>
+        <label>Sample source
+          <select name="source">
+            <option value="virtual" selected>Virtual sample (theoretical test, no physical sample)</option>
+            <option value="physical">Simulated physical sample (matrix, pipetting, scatter)</option>
+            {% if bridge_instruments %}
+            <option value="bridge">Instrument bridge (real driver data via TCP/HTTP)</option>
+            {% endif %}
+          </select>
+        </label>
+        {% if bridge_instruments %}
+        <label>Bridge instrument <span class="hint">(for bridge source)</span>
+          <select name="bridge_instrument">
+            {% for i in bridge_instruments %}
+            <option value="{{ i.id }}">{{ i.name }} — {{ i.vendor or '?' }} {{ i.model or '' }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        {% endif %}
+        <label>Reference compound (built-in UV data sheet)
+          <select name="compound" id="compound">
+            {% for c in compounds %}
+            <option value="{{ c.name }}" data-eps="{{ c.eps }}" {% if c.name == preset_compound %}selected{% endif %}>
+              {{ c.name }} — {{ c.lambda_max }} nm ({{ c.use }})
+            </option>
+            {% endfor %}
+          </select>
+        </label>
+        <div class="row2">
+          <label>Concentration (uM)<input name="conc_uM" id="conc_uM" type="number" step="0.1" value="{{ default_conc }}"></label>
+          <label>Path length (cm)<input name="path_cm" type="number" step="0.1" value="1.0" min="0.1"></label>
+        </div>
+        <label>Operator <input name="operator" placeholder="your name or handle"></label>
+        <p class="hint">Beer–Lambert truth is known for every virtual run: A = ε·c·l from the library datasheet, so accuracy is measurable, not assumed.</p>
+      </fieldset>
+    </div>
+  </div>
+
+  <div class="tabpane hidden" id="tab-baseline" role="tabpanel">
+    <div class="console-grid two">
+      <fieldset class="panel">
+        <legend>Baseline setting</legend>
+        <label>Baseline correction method
+          <select name="baseline" id="baseline">
+            {% for val, lab in baseline_options %}
+            <option value="{{ val }}" {% if val == 'none' %}selected{% endif %}>{{ lab }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <div class="baseline-cards">
+          {% for val, lab in baseline_options %}
+          <div class="basecard" data-base="{{ val }}">
+            <b>{{ lab }}</b>
+            <p>{% if val == 'none' %}Raw spectrum kept as measured; any constant offset is absorbed by the calibration intercept.
+               {% elif val == 'blank' %}Solvent blank spectrum subtracted point-by-point — the classical reference-beam style correction.
+               {% elif val == 'endpoint' %}Straight line between the first and last scan point of a blank run, subtracted across the range (drift removal).
+               {% else %}Blank-run minimum forced to A = 0 — fastest way to level a shifted spectrum.{% endif %}</p>
+          </div>
+          {% endfor %}
+        </div>
+        <div class="row2">
+          <label>Peak threshold (mAbs)
+            <input name="peak_threshold" type="number" value="4" min="1" step="0.1">
+          </label>
+          <label>Min. peak width (nm)
+            <input name="min_peak_span" type="number" value="4" min="0.5" step="0.5">
+          </label>
+        </div>
+        <div class="row2">
+          <label>Smoothing (points)
+            <input name="smoothing" type="number" value="5" min="1" max="25" step="2">
+          </label>
+          <label>Active peak — analyzed peak
+            <select name="active_peak" id="active_peak">
+              <option value="auto" selected>Automatic (largest resolved peak)</option>
+              <option value="tallest">Tallest peak</option>
+              <option value="manual">Manual wavelength</option>
+            </select>
+          </label>
+        </div>
+        <label id="manualpeakwrap" class="hidden">Manual peak wavelength (nm)
+          <input name="active_peak_nm" id="active_peak_nm" type="number" value="272" step="0.1">
+        </label>
+        <p class="hint">One selected peak drives the whole chain: spectrum display, quantitation response and the purity report. The Active peak pick tab can set it from a previous run.</p>
+      </fieldset>
+
+      <fieldset class="panel">
+        <legend>How each method behaves</legend>
+        <table class="table">
+          <thead><tr><th>Method</th><th>Subtracts</th><th>Best for</th></tr></thead>
+          <tbody>
+            <tr><td>None</td><td>nothing</td><td>clean, stable baselines; keeps raw trace</td></tr>
+            <tr><td>Solvent blank</td><td>blank spectrum (per point)</td><td>sloped solvent absorbance</td></tr>
+            <tr><td>Endpoint</td><td>line through blank run endpoints</td><td>lamp drift over long sequences</td></tr>
+            <tr><td>Auto-zero</td><td>blank-run minimum</td><td>quick leveling before peak pick</td></tr>
+          </tbody>
+        </table>
+        <p class="hint">Endpoint and auto-zero derive from a <em>blank run</em>, never from the sample itself — so the correction is concentration-independent and cannot bend the calibration.</p>
+      </fieldset>
+    </div>
+  </div>
+
+  <div class="tabpane hidden" id="tab-cal" role="tabpanel">
+    <div class="console-grid two">
+      <fieldset class="panel">
+        <legend>Stored system calibrations</legend>
+        <div class="calgrid">
+          {% for c in calibrations %}
+          <div class="calcard">
+            <div class="calhead">
+              <b>Cal #{{ c.id }}</b>
+              <span class="chip">{{ c.cal_type }}</span>
+              <span class="chip">{{ c.weighting or 'none' }} · {{ c.meas_type or 'height' }} · {{ c.units or 'uM' }}</span>
+            </div>
+            <div class="calmeta">{{ c.compound }} @ {{ c.method_wl }} nm · {{ c.instrument }} · {{ c.created_at }}</div>
+            <div class="eq">{{ c.equation }}</div>
+            <div class="calmeta">r² = {{ '%.5f' | format(c.r2 or 0) }} · n = {{ c.standards | length }} levels</div>
+            {% if c.curve_svg %}{{ c.curve_svg | safe }}{% endif %}
+            <div class="calacts">
+              <a class="btn small" href="{{ url_for('uvvis_console', use=c.id) }}#tab-quant">Use in run</a>
+              <form id="caldel-{{ c.id }}" method="post" action="{{ url_for('uvvis_cal_delete', cid=c.id) }}"></form>
+              <button class="btn small danger" type="submit" form="caldel-{{ c.id }}">Delete</button>
+            </div>
+            <details>
+              <summary>Standards</summary>
+              <table class="table compact">
+                <thead><tr><th>Level</th><th>µM</th><th>A</th></tr></thead>
+                <tbody>
+                  {% for s in c.standards %}
+                  <tr><td>{{ s.get('level', loop.index) }}</td><td>{{ s.conc_uM }}</td><td>{{ s.abs }}</td></tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </details>
+          </div>
+          {% else %}
+          <p class="empty">No stored calibration yet — a Quantitative run builds one automatically.</p>
+          {% endfor %}
+        </div>
+      </fieldset>
+
+      <fieldset class="panel">
+        <legend>System calibration checks</legend>
+        <table class="table">
+          <thead><tr><th>Parameter</th><th>Acceptance</th><th>Where it is judged</th></tr></thead>
+          <tbody>
+            <tr><td>Linearity r²</td><td>≥ 0.9990</td><td>every Quantitative run</td></tr>
+            <tr><td>Recovery</td><td>98.0 – 102.0 %</td><td>every Quantitative run</td></tr>
+            <tr><td>Repeatability RSD</td><td>≤ 2.00 %</td><td>every Quantitative run</td></tr>
+            <tr><td>Signal level</td><td>0.100 – 2.500 A</td><td>every Quantitative run</td></tr>
+          </tbody>
+        </table>
+        <p class="hint">Stored curves are immutable snapshots: <em>Use in run</em> replays the exact working curve, and the result page prints it on the report with its chain hash.</p>
+        <p class="hint"><a href="{{ url_for('uvvis_model') }}">Model integrity &amp; accuracy ledger →</a></p>
+      </fieldset>
+    </div>
+  </div>
+
+  <div class="tabpane hidden" id="tab-quant" role="tabpanel">
+    <div class="console-grid two">
+      <fieldset class="panel">
+        <legend>Quantitation parameters</legend>
+        <div class="row2">
+          <label>Calibration fit
+            <select name="cal_type">
+              <option value="linear" selected>Linear (A = a + b·C)</option>
+              <option value="quadratic">Quadratic (A = a + b·C + c·C²)</option>
+            </select>
+          </label>
+          <label>Regression weighting
+            <select name="weighting">
+              <option value="none" selected>None (OLS)</option>
+              <option value="1/x">1/x (equal relative error)</option>
+              <option value="1/x2">1/x² (strong low-end pull)</option>
+            </select>
+          </label>
+        </div>
+        <div class="row2">
+          <label>Signal measured by
+            <select name="meas_type">
+              <option value="height" selected>Peak height at active λ</option>
+              <option value="area">Peak area (A·nm window)</option>
+            </select>
+          </label>
+          <label>Report units
+            <select name="units">
+              {% for u in unit_labels %}
+              <option value="{{ u }}" {% if u == 'uM' %}selected{% endif %}>{{ unit_labels[u] }}</option>
+              {% endfor %}
+            </select>
+          </label>
+        </div>
+        <label class="inlinecheck">
+          <input type="checkbox" name="no_intercept" value="on"> Force zero intercept (through origin)
+        </label>
+        <div class="row2">
+          <label>Replicates / unknown
+            <input name="reps" type="number" value="3" min="1" max="5">
+          </label>
+          <label>Unknown samples
+            <input name="n_unknowns" type="number" value="2" min="1" max="6">
+          </label>
+        </div>
+        <label>Standard levels (µM, comma-separated)
+          <input name="std_levels" placeholder="leave blank → auto set around the nominal concentration">
+        </label>
+        <label>Use stored system calibration
+          <select name="use_calibration">
+            <option value="">Build a fresh calibration this run</option>
+            {% for c in calibrations %}
+            <option value="{{ c.id }}" {% if use_id and c.id | string == use_id %}selected{% endif %}>Cal #{{ c.id }} — {{ c.compound }} @ {{ c.method_wl }} nm ({{ c.cal_type }}, r²={{ '%.4f' | format(c.r2 or 0) }})</option>
+            {% endfor %}
+          </select>
+        </label>
+        <p class="hint">Weighting compensates heteroscedastic standards; area measurement integrates ± half-peak-width around the active λ — both are visible in the live preview before you commit a run.</p>
+      </fieldset>
+
+      <fieldset class="panel">
+        <legend>Live preview <span class="hint">(deterministic · nothing is stored)</span></legend>
+        <div class="runbar tight">
+          <button class="btn" type="button" id="previewBtn">Refresh preview</button>
+          <span class="hint">Same physics as the real run, fixed seed: standards, unknowns, fit and units you picked.</span>
+        </div>
+        <div id="previewOut" class="preview"><p class="empty">Press Refresh preview to compute standards, unknowns and the working curve with your current parameters.</p></div>
+      </fieldset>
+    </div>
+  </div>
+
+  <div class="tabpane hidden" id="tab-peak" role="tabpanel">
+    <div class="console-grid two">
+      <fieldset class="panel">
+        <legend>Active peak pick</legend>
+        {% if peak_source %}
+        <p class="hint">Detected peaks from <a href="{{ url_for('uvvis_result', mid=peak_source.mid) }}">{{ peak_source.mode }} #{{ peak_source.mid }}</a> — {{ peak_source.compound }}, {{ peak_source.created_at }}. Select one to drive this run, or <a href="{{ url_for('uvvis_result', mid=peak_source.mid) }}#peaks">open the result to re-analyze it</a>.</p>
+        <table class="table peaktable">
+          <thead><tr><th></th><th>#</th><th>λ (nm)</th><th>Height (A)</th><th>Area (A·nm)</th><th>Width (nm)</th><th>Purity</th></tr></thead>
+          <tbody>
+            {% for pk in peak_source.peaks %}
+            <tr>
+              <td><input type="radio" name="peak_wl" value="{{ pk.wl }}" {% if pk.get('active') %}checked{% endif %}></td>
+              <td>{{ loop.index }}</td>
+              <td><b>{{ pk.wl }}</b></td>
+              <td>{{ '%.4f' | format(pk.height_A) }}</td>
+              <td>{{ '%.2f' | format(pk.area_A_nm) }}</td>
+              <td>{{ '%.1f' | format(pk.width_nm) }}</td>
+              <td>{{ pk.purity }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        <div class="row2">
+          <label>Manual wavelength (nm) <input id="peakManual" type="number" step="0.1" placeholder="e.g. 273"></label>
+          <button class="btn" type="button" id="peakApply">Use manual λ</button>
+        </div>
+        <p class="hint" id="peakStatus">Picking a peak switches the method to <b>Manual wavelength</b> below (Baseline setting tab).</p>
+        {% else %}
+        <p class="empty">No peak list yet — run a Spectrum or Quantitative measurement first; its detected peaks appear here for one-click re-picking.</p>
+        {% endif %}
+      </fieldset>
+
+      <fieldset class="panel">
+        <legend>Why pick peaks again</legend>
+        <p class="hint">A recorded run keeps every detected peak. Re-picking on the <b>result page</b> re-analyzes that stored measurement at another λ — quantitation is re-scaled by the ε-ratio, the calibration is refit, and the original judgment stays untouched for audit. The chain hash records the change.</p>
+        <p class="hint">Here in the console, picking a peak only sets the <em>next</em> run's active wavelength.</p>
+      </fieldset>
+    </div>
+  </div>
+
+  <div class="runbar">
+    <button class="btn primary big" type="submit">▶ START MEASUREMENT</button>
+    <span class="hint">Result is judged against acceptance criteria and compared with ground truth; misses are logged to model integrity.</span>
+  </div>
+</form>
+
+<section>
+  <h2>Recent measurements</h2>
+  <div class="list">
+    {% for r in recent %}
+    <a class="row" href="{{ url_for('uvvis_result', mid=r.id) }}">
+      <span class="chip {{ 'success' if r.judgment == 'PASS' else 'failure' }}">{{ r.judgment }}</span>
+      <span class="tech">{{ r.mode }}</span>
+      <span class="mid">{{ r.compound }} · {{ r.instrument }} · {{ r.source }}</span>
+      <span class="lab">{{ 'no contact' if r.source == 'virtual' else 'sim. physical' }}</span>
+      <span class="date">{{ r.created_at }}</span>
+    </a>
+    {% else %}
+    <p class="empty">Runs appear here after you start a measurement.</p>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}
+{% block extra %}
+<script>
+  (function () {
+    var inst = document.getElementById('instrument');
+    var specs = document.querySelectorAll('#specbox .spec');
+    function showSpec() {
+      specs.forEach(function (s) { s.classList.toggle('on', s.dataset.inst === inst.value); });
+    }
+    inst.addEventListener('change', showSpec);
+    var comp = document.getElementById('compound');
+    var conc = document.getElementById('conc_uM');
+    comp.addEventListener('change', function () {
+      var eps = parseFloat(comp.selectedOptions[0].dataset.eps || '10000');
+      conc.value = Math.min(500, Math.max(1, 0.8 * 1e6 / eps)).toFixed(1);
+      var wl = document.getElementById('method_wl');
+      var m = comp.selectedOptions[0].textContent.match(/—\s*(\d+)\s*nm/);
+      if (m && wl) wl.value = m[1];
+    });
+    var ap = document.getElementById('active_peak');
+    var mw = document.getElementById('manualpeakwrap');
+    function syncPeak() {
+      mw.classList.toggle('hidden', ap.value !== 'manual');
+    }
+    ap.addEventListener('change', syncPeak);
+    syncPeak();
+    showSpec();
+
+    var tabbtns = document.querySelectorAll('.tabbtn');
+    var pbtn = document.getElementById('previewBtn');
+    var pout = document.getElementById('previewOut');
+    var previewLoaded = false;
+
+    function esc(s) {
+      return String(s).replace(/[&<>"]/g, function (c) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+      });
+    }
+
+    function renderPreview(d) {
+      if (d.error) {
+        pout.innerHTML = '<p class="empty">' + esc(d.error) + '</p>';
+        return;
+      }
+      var cal = d.calibration || {};
+      var html = '<p class="pvsummary"><b>' + esc(d.summary) + '</b> · active λ ' + d.active_peak_nm +
+        ' nm · ' + d.n_peaks + ' peaks · baseline: ' + esc((d.baseline || {}).method || 'none') + '</p>';
+      html += '<p class="eq">' + esc(cal.eq || '') + ' · r² = ' + (cal.r2 != null ? cal.r2.toFixed(5) : '—') +
+        ' · LOD ' + cal.lod + ' · LOQ ' + cal.loq + ' · weighting ' + esc(cal.weighting || 'none') +
+        ' · ' + esc(cal.meas_type || 'height') + ' · ' + esc(cal.units || 'uM') + '</p>';
+      html += '<table class="table compact"><thead><tr><th>Std</th><th>µM</th><th>A</th></tr></thead><tbody>';
+      (d.standards || []).forEach(function (s, i) {
+        html += '<tr><td>' + (s.level != null ? esc(s.level) : i + 1) + '</td><td>' + s.conc_uM + '</td><td>' + s.abs + '</td></tr>';
+      });
+      html += '</tbody></table>';
+      html += '<table class="table compact"><thead><tr><th>Sample</th><th>True µM</th><th>Mean A</th><th>RSD %</th><th>Found</th><th>Rec %</th><th>OK</th></tr></thead><tbody>';
+      (d.unknowns || []).forEach(function (u) {
+        html += '<tr><td>' + esc(u.sample) + '</td><td>' + u.conc_uM + '</td><td>' + u.mean_abs +
+          '</td><td>' + u.rsd_pct + '</td><td>' + u.found_val + ' ' + esc(u.found_unit) +
+          '</td><td>' + u.recovery_pct + '</td><td>' + (u.accepted ? '✓' : '✗') + '</td></tr>';
+      });
+      html += '</tbody></table>';
+      if (d.chart) html += '<div class="pvchart">' + d.chart + '</div>';
+      pout.innerHTML = html;
+      pout.dataset.loaded = '1';
+    }
+
+    function runPreview() {
+      pbtn.disabled = true;
+      pout.innerHTML = '<p class="empty">Computing preview…</p>';
+      var body = new URLSearchParams(new FormData(document.getElementById('uvform')));
+      fetch('{{ url_for("uvvis_quantpreview") }}', { method: 'POST', body: body })
+        .then(function (r) { return r.json(); })
+        .then(function (d) { pbtn.disabled = false; renderPreview(d); })
+        .catch(function (e) { pbtn.disabled = false; pout.innerHTML = '<p class="empty">' + esc(e) + '</p>'; });
+    }
+    pbtn.addEventListener('click', runPreview);
+
+    function showTab(id) {
+      tabbtns.forEach(function (b) { b.classList.toggle('on', b.dataset.tab === id); });
+      document.querySelectorAll('.tabpane').forEach(function (p) {
+        p.classList.toggle('hidden', p.id !== id);
+      });
+      if (id === 'tab-quant' && !previewLoaded && pout.dataset.loaded !== '1') runPreview();
+    }
+    tabbtns.forEach(function (b) {
+      b.addEventListener('click', function () { showTab(b.dataset.tab); });
+    });
+    if (location.hash && document.getElementById(location.hash.slice(1))) {
+      showTab(location.hash.slice(1));
+    }
+
+    function pickPeak(wl) {
+      ap.value = 'manual';
+      syncPeak();
+      var nm = document.getElementById('active_peak_nm');
+      if (nm) nm.value = wl;
+      var st = document.getElementById('peakStatus');
+      if (st) st.innerHTML = 'Active wavelength set to <b>' + esc(wl) + ' nm</b> for the next run.';
+    }
+    document.querySelectorAll('input[name="peak_wl"]').forEach(function (r) {
+      r.addEventListener('change', function () { pickPeak(r.value); });
+    });
+    var pa = document.getElementById('peakApply');
+    if (pa) {
+      pa.addEventListener('click', function () {
+        var v = document.getElementById('peakManual').value;
+        if (v) pickPeak(v);
+      });
+    }
+  })();
+</script>
+{% endblock %}

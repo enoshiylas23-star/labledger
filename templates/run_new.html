@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}Record run{% endblock %}
+{% block content %}
+<h1>Record a run</h1>
+<p class="sub">Structured capture for {{ active_lab.name if active_lab else 'your lab' }}. Failures require a learning note — that is the point of the ledger.</p>
+
+<form class="form" method="post">
+  <fieldset>
+    <legend>Analysis</legend>
+    <div class="row2">
+      <label>Technique
+        <select name="technique" required>
+          {% for t in TECHNIQUES %}<option value="{{ t }}">{{ t }}</option>{% endfor %}
+        </select>
+      </label>
+      <label>Method name
+        <input name="method" required placeholder="e.g. USP Assay-1 / Caffeine gradient">
+      </label>
+    </div>
+    <div class="row2">
+      <label>Instrument
+        <input name="instrument" required placeholder="e.g. Shimadzu LC-2030 HPLC, UV-1900, GC-2030">
+      </label>
+      <label>Matrix / sample
+        <input name="matrix" required placeholder="e.g. tablet extract, river water, headspace vial">
+      </label>
+    </div>
+    <div class="row2">
+      <label>Operator
+        <input name="operator" placeholder="your name or handle">
+      </label>
+      <label>Project <em>(optional — a project bot watches this)</em>
+        <input name="project" placeholder="e.g. MKT-77 stability study">
+      </label>
+    </div>
+    <div class="row2">
+      <label>Analyst notes (optional)
+        <input name="notes" placeholder="column lot, mobile phase, anything notable">
+      </label>
+      <label></label>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Outcome</legend>
+    <div class="row2">
+      <label>Result
+        <select name="outcome" required>
+          <option value="success">Success — met all acceptance criteria</option>
+          <option value="failure">Failure — did not meet criteria</option>
+          <option value="invalid">Invalid — run must be discarded</option>
+        </select>
+      </label>
+      <label>Failure mode (if not a success)
+        <select name="failure_mode">
+          <option value="">—</option>
+          {% for f in failure_modes %}<option value="{{ f }}">{{ f }}</option>{% endfor %}
+        </select>
+      </label>
+    </div>
+    <label>What did you learn? <em>(required for failure / invalid)</em>
+      <textarea name="learning" rows="3" placeholder="e.g. Resolution collapsed below 60 °C column temperature on this matrix; re-run at 40 °C with fresh column resolved it."></textarea>
+    </label>
+  </fieldset>
+
+  <button class="btn primary" type="submit">Save run</button>
+</form>
+{% endblock %}

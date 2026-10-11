@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}Bots{% endblock %}
+{% block content %}
+<h1>Project &amp; lab bots</h1>
+<p class="sub">Each bot watches the lab records that match its scope — a project, a researcher, or a whole company lab —
+and posts a note the moment a matching run is recorded. Engine: <strong>{{ provider.label }}</strong>.</p>
+
+<div class="split">
+  <section>
+    <h2>Live bots</h2>
+    <table class="grid-table">
+      <thead><tr><th>Bot</th><th>Kind</th><th>Scope</th><th>Mandate</th><th>Notes</th><th></th></tr></thead>
+      <tbody>
+        {% for b in bots %}
+        <tr>
+          <td><a href="{{ url_for('bot_detail', bot_id=b.id) }}"><strong>{{ b.name }}</strong></a></td>
+          <td><span class="chip">{{ b.kind }}</span></td>
+          <td>{{ b.scope }}</td>
+          <td class="hint">{{ (b.mandate or '—')[:70] }}</td>
+          <td>{{ b.note_count }}</td>
+          <td>
+            <form method="post" action="{{ url_for('bot_delete', bot_id=b.id) }}" class="inlineform">
+              <button class="btn" type="submit">Delete</button>
+            </form>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" class="empty">No bots yet — create one.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <p class="hint">Matching rules: <strong>project</strong> bots match <code>runs.project</code> exactly ·
+      <strong>researcher</strong> bots match the run operator · <strong>company</strong> bots match your active lab name.</p>
+  </section>
+
+  <section>
+    <h2>Create a bot</h2>
+    <form class="form" method="post">
+      <fieldset>
+        <legend>Identity</legend>
+        <div class="row2">
+          <label>Name <input name="name" required placeholder="e.g. MKT-77 guardian"></label>
+          <label>Kind
+            <select name="kind">
+              {% for k in kinds %}<option value="{{ k }}">{{ k }}</option>{% endfor %}
+            </select>
+          </label>
+        </div>
+        <label>Scope <input name="scope" required list="scopes" placeholder="project code / researcher name / lab name">
+          <datalist id="scopes">
+            {% for p in projects %}<option value="{{ p }}">{% endfor %}
+            <option value="{{ active_lab.name if active_lab else '' }}">
+          </datalist>
+        </label>
+        <label>Mandate (what it should watch for)
+          <textarea name="mandate" rows="3" placeholder="e.g. Flag any resolution failure and track column history for this study."></textarea>
+        </label>
+      </fieldset>
+      <button class="btn primary" type="submit">Create bot</button>
+      <p class="hint">New bots start reviewing immediately — every future matching run gets a note automatically.</p>
+    </form>
+  </section>
+</div>
+{% endblock %}

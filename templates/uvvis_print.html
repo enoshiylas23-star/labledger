@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LabLedger report — UV-Vis #{{ m.id }}</title>
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; }
+  body { font: 14px/1.5 "Segoe UI", system-ui, sans-serif; color: #16202b; background: #fff; margin: 0; padding: 32px; }
+  .sheet { max-width: 960px; margin: 0 auto; }
+  h1 { font-size: 22px; margin: 4px 0 2px; }
+  h2 { font-size: 15px; margin: 26px 0 8px; padding-bottom: 4px; border-bottom: 2px solid #16202b; text-transform: uppercase; letter-spacing: .04em; }
+  .brand { display: flex; justify-content: space-between; align-items: baseline; border-bottom: 3px solid #16202b; padding-bottom: 8px; }
+  .brand b { font-size: 18px; letter-spacing: .02em; }
+  .brand span { color: #5b6774; font-size: 12px; }
+  .eyebrow { color: #5b6774; font-size: 12px; text-transform: uppercase; letter-spacing: .08em; }
+  .badge { display: inline-block; padding: 2px 10px; border-radius: 3px; font-weight: 700; font-size: 13px; }
+  .pass { background: #d7f5e5; color: #0a6b3d; border: 1px solid #3ddc97; }
+  .fail { background: #fde2e2; color: #9b1c1c; border: 1px solid #f36a6a; }
+  table { width: 100%; border-collapse: collapse; margin: 6px 0 10px; }
+  th, td { border: 1px solid #c9d2dc; padding: 5px 8px; text-align: left; font-size: 12.5px; vertical-align: top; }
+  th { background: #eef2f7; font-weight: 600; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .meta { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 14px 0; }
+  .meta div { border: 1px solid #c9d2dc; padding: 8px 10px; }
+  .meta span { display: block; color: #5b6774; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; }
+  .meta b { font-size: 13px; }
+  .trace { width: 100%; height: auto; border: 1px solid #c9d2dc; background: #fbfcfe; }
+  .ok { color: #0a6b3d; font-weight: 700; }
+  .bad { color: #9b1c1c; font-weight: 700; }
+  .hash { font-family: Consolas, monospace; font-size: 11px; word-break: break-all; }
+  .sig { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-top: 40px; }
+  .sig div { border-top: 1px solid #16202b; padding-top: 6px; font-size: 12px; color: #5b6774; }
+  .foot { margin-top: 26px; padding-top: 8px; border-top: 1px solid #c9d2dc; color: #5b6774; font-size: 11px; display: flex; justify-content: space-between; }
+  .printbtn { position: fixed; top: 12px; right: 12px; padding: 8px 16px; background: #16202b; color: #fff; border: 0; border-radius: 4px; font-size: 13px; cursor: pointer; }
+  @media print {
+    body { padding: 0; }
+    .printbtn { display: none; }
+    h2 { break-after: avoid; }
+    table, .meta, .trace { break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+<button class="printbtn" onclick="window.print()">Print / Save PDF</button>
+<div class="sheet">
+  <div class="brand">
+    <div>
+      <b>LabLedger</b> <span>UV-Vis measurement report</span>
+      <div class="eyebrow">{{ m.lab_name }} · measurement #{{ m.id }}</div>
+    </div>
+    <span>Generated {{ params.get('printed_at', '') or '' }}{{ '' }}{{ m.created_at }}</span>
+  </div>
+
+  <h1>{{ m.compound }} — {{ m.mode }} — {{ m.judgment }}
+    <span class="badge {{ 'pass' if m.judgment == 'PASS' else 'fail' }}">{{ m.judgment }}</span>
+  </h1>
+
+  <div class="meta">
+    <div><span>Instrument</span><b>{{ m.instrument }}</b></div>
+    <div><span>Source</span><b>{{ m.source }}</b></div>
+    <div><span>Operator</span><b>{{ m.operator or '—' }}</b></div>
+    <div><span>Recorded</span><b>{{ m.created_at }}</b></div>
+    <div><span>Concentration</span><b>{{ params.conc_uM }} µM · {{ params.path_cm }} cm</b></div>
+    <div><span>Range / interval</span><b>{{ params.wl_start }}–{{ params.wl_end }} nm / {{ params.step_nm }} nm</b></div>
+    <div><span>Speed / bandwidth</span><b>{{ params.speed }} / {{ params.bandwidth_nm }} nm</b></div>
+    <div><span>Duration</span><b>{{ m.duration_ms }} ms · model rev {{ state.revision }}</b></div>
+  </div>
+
+  <h2>Parameter settings</h2>
+  <table>
+    <tbody>
+      <tr><td style="width:34%">Wavelength range / step</td><td>{{ params.wl_start }}–{{ params.wl_end }} nm / {{ params.step_nm }} nm</td></tr>
+      <tr><td>Scan speed / spectral bandwidth</td><td>{{ params.speed }} / {{ params.bandwidth_nm }} nm</td></tr>
+      <tr><td>Smoothing</td><td>{{ params.get('smoothing', '–') }} points</td></tr>
+      <tr><td>Baseline correction</td><td>{{ {'none': 'None — raw spectra', 'blank': 'Solvent blank subtraction', 'endpoint': 'Endpoint correction (blank run, linear)', 'autozero': 'Auto-zero (subtract blank minimum)'}.get(params.get('baseline', 'none'), 'None — raw spectra') }}</td></tr>
+      <tr><td>Peak threshold / min. width</td><td>{{ ((params.get('peak_threshold', 0.004) or 0.004) * 1000) | round(1) }} mAbs / {{ params.get('min_peak_span', '–') }} nm</td></tr>
+      <tr><td>Active peak</td><td>{{ params.get('active_peak', 'auto') }}{% if params.get('active_peak_nm') %} @ {{ params['active_peak_nm'] }} nm{% endif %} — analysis at {{ analysis.get('active_peak_nm', '–') }} nm</td></tr>
+      {% if m.mode == 'Quantitative' %}
+      <tr><td>Calibration fit</td><td>{{ params.get('cal_type', 'linear') }} · weighting {{ params.get('weighting', 'none') }}{{ ' · zero intercept' if params.get('no_intercept') else '' }}</td></tr>
+      <tr><td>Signal measurement</td><td>{{ params.get('meas_type', 'height') }} · report in {{ params.get('units', 'uM') }}</td></tr>
+      <tr><td>Standard levels</td><td>{{ params.get('std_levels') or 'auto (around nominal concentration)' }}</td></tr>
+      <tr><td>Unknown samples / replicates</td><td>{{ params.get('n_unknowns', 1) }} / {{ params.get('reps', 3) }}</td></tr>
+      {% endif %}
+    </tbody>
+  </table>
+
+  <h2>{{ 'Calibration' if m.mode == 'Quantitative' else 'Measurement trace' }}</h2>
+  <div>{{ m.chart | safe }}</div>
+
+  <h2>Acceptance judgment</h2>
+  <table>
+    <thead><tr><th>Criterion</th><th>Measured</th><th>Acceptance</th><th>Result</th></tr></thead>
+    <tbody>
+      {% for c in checks %}
+      <tr>
+        <td>{{ c.name }}</td><td>{{ c.value }}</td><td>{{ c.limit }}</td>
+        <td class="{{ 'ok' if c.pass else 'bad' }}">{{ 'PASS' if c.pass else 'FAIL' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <div class="sig-grid" style="display:grid; grid-template-columns:1fr 1fr; gap:24px">
+    <div>
+      <h2>Analysis result</h2>
+      <table>
+        <tbody>
+          {% for k, v in analysis.items() %}
+          <tr><td style="width:52%">{{ k.replace('_', ' ') }}</td><td>{{ v }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div>
+      <h2>Ground truth</h2>
+      {% if truth %}
+      <table>
+        <tbody>
+          {% for k, v in truth.items() %}
+          <tr><td style="width:52%">{{ k.replace('_', ' ') }}</td><td>{{ v }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <p>No ground truth available for this run.</p>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if m.mode == 'Quantitative' and data.get('calibration') %}
+  <h2>System calibration</h2>
+  <table>
+    <tbody>
+      <tr><td style="width:34%">Type / equation</td><td>{{ data.calibration.type }} — {{ data.calibration.eq }}</td></tr>
+      <tr><td>r² / sy/x</td><td>{{ '%.5f' | format(data.calibration.r2) }} / {{ '%.5f' | format(data.calibration.syx) }}</td></tr>
+      <tr><td>LOD / LOQ</td><td>{{ '%.3f' | format(data.calibration.lod) }} / {{ '%.3f' | format(data.calibration.loq) }} µM</td></tr>
+      <tr><td>Weighting / signal</td><td>{{ data.calibration.get('weighting', params.get('weighting', 'none')) }} · {{ data.calibration.get('meas_type', params.get('meas_type', 'height')) }} · reported in {{ data.calibration.get('units', params.get('units', 'uM')) }}</td></tr>
+    </tbody>
+  </table>
+  <table>
+    <thead><tr><th>Level</th><th class="num">Concentration (µM)</th><th class="num">Absorbance (A)</th><th>Accepted</th></tr></thead>
+    <tbody>
+      {% for s in data.get('standards', []) %}
+      <tr><td>{{ s.get('level', loop.index) }}</td><td class="num">{{ s.conc_uM }}</td><td class="num">{{ s.abs }}</td>
+        <td>{{ 'yes' if s.get('accepted') else 'no' }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+
+  {% if m.mode == 'Quantitative' and data.get('unknowns') %}
+  <h2>Unknown samples <span style="font-weight:400; text-transform:none">— reported in {{ analysis.get('units', 'uM') }}</span></h2>
+  <table>
+    <thead><tr><th>Sample</th><th class="num">Mean A</th><th class="num">SD</th><th class="num">RSD %</th>
+      <th class="num">Found ({{ analysis.get('units', 'uM') }})</th><th class="num">Recovery %</th><th>Verdict</th></tr></thead>
+    <tbody>
+      {% for u in data.get('unknowns', []) %}
+      <tr>
+        <td>{{ u.sample }}</td>
+        <td class="num">{{ '%.4f' | format(u.mean_abs) }}</td>
+        <td class="num">{{ '%.4f' | format(u.sd) }}</td>
+        <td class="num">{{ '%.2f' | format(u.rsd_pct) }}</td>
+        <td class="num">{{ u.get('found_val', '%.2f' | format(u.found_uM)) }} {{ u.get('found_unit', 'uM') }}</td>
+        <td class="num">{{ '%.1f' | format(u.recovery_pct) }}</td>
+        <td class="{{ 'ok' if u.get('accepted') else 'bad' }}">{{ 'ACCEPTED' if u.get('accepted') else 'REJECTED' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+
+  {% if data.get('peaks') %}
+  <h2>Detected peaks</h2>
+  <table>
+    <thead><tr><th>#</th><th class="num">λ (nm)</th><th class="num">Height (A)</th><th class="num">Area (A·nm)</th>
+      <th class="num">Width (nm)</th><th class="num">Purity</th><th>Active</th></tr></thead>
+    <tbody>
+      {% for pk in data.get('peaks', []) %}
+      <tr>
+        <td>{{ loop.index }}</td>
+        <td class="num">{{ '%.2f' | format(pk.wl) }}</td>
+        <td class="num">{{ '%.4f' | format(pk.height_A) }}</td>
+        <td class="num">{{ '%.3f' | format(pk.area_A_nm) }}</td>
+        <td class="num">{{ '%.1f' | format(pk.width_nm) }}</td>
+        <td class="num">{{ (pk.purity * 100) | round(0) }}%</td>
+        <td>{{ 'ACTIVE' if pk.get('active') else '—' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+
+  {% if errors %}
+  <h2>Acknowledged model corrections</h2>
+  <table>
+    <tbody>
+      {% for e in errors %}
+      <tr><td style="width:34%">{{ e.label }}</td>
+        <td>promised ±{{ e.promised }} {{ e.unit }}, observed {{ e.observed }} {{ e.unit }} — {{ e.cause }}; correction: {{ e.action }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+
+  <h2>Measurement log <span style="font-weight:400; text-transform:none">(hash-chained, {{ events | length }} events)</span></h2>
+  <table>
+    <thead><tr><th>#</th><th>Action</th><th>Detail</th><th>Hash</th></tr></thead>
+    <tbody>
+      {% for e in events %}
+      <tr><td>{{ loop.index }}</td><td>{{ e.action }}</td><td>{{ e.detail }}</td><td class="hash">{{ e.hash[:24] }}…</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p class="hash">Chain tail: {{ chain_tail }}</p>
+
+  <div class="sig">
+    <div>Analyst signature / date</div>
+    <div>Reviewed by (QA) / date</div>
+  </div>
+
+  <div class="foot">
+    <span>LabLedger · {{ m.lab_name }} · UV-Vis #{{ m.id }}</span>
+    <span>Integrity: SHA-256 chain, verifiable on the model integrity page</span>
+  </div>
+</div>
+</body>
+</html>

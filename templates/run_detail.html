@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+{% block title %}Run #{{ run.id }}{% endblock %}
+{% block content %}
+<div class="detail-head">
+  <div>
+    <div class="eyebrow">Run #{{ run.id }} · {{ run.technique }} · {{ run.lab_name }}</div>
+    <h1>{{ run.method }}</h1>
+  </div>
+  <div class="chips">
+    <span class="chip {{ run.outcome or 'none' }}">{{ run.outcome or 'no outcome' }}</span>
+    {% if run.published %}<span class="chip pub">published{% if run.anon %} (anon){% endif %}</span>{% endif %}
+  </div>
+</div>
+
+<section class="cards meta">
+  <div class="card"><span class="k">Instrument</span><span class="v">{{ run.instrument }}</span></div>
+  <div class="card"><span class="k">Matrix</span><span class="v">{{ run.matrix }}</span></div>
+  <div class="card"><span class="k">Operator</span><span class="v">{{ run.operator }}</span></div>
+  <div class="card"><span class="k">Recorded</span><span class="v">{{ run.created_at }}</span></div>
+  {% if run.failure_mode %}<div class="card"><span class="k">Failure mode</span><span class="v bad-text">{{ run.failure_mode }}</span></div>{% endif %}
+  <div class="card"><span class="k">Chain hash</span><span class="v mono">{{ run.chain_hash[:16] }}… {% if chain_ok %}<span class="ok-text">verified</span>{% else %}<span class="bad-text">broken</span>{% endif %}</span></div>
+</section>
+
+<section>
+  <h2>{% if trace.kind == 'spectrum' %}Spectrum{% else %}Chromatogram{% endif %}</h2>
+  <div class="tracewrap">{{ trace_svg|safe }}</div>
+</section>
+
+<div class="split">
+  <section>
+    <h2>Results</h2>
+    <table class="grid-table">
+      {% if trace.kind == 'chromatogram' %}
+      <thead><tr><th>Peak</th><th>RT (min)</th><th>Area</th><th>Height</th><th>%</th></tr></thead>
+      <tbody>
+        {% for p in trace.peaks %}
+        <tr><td>{{ p.name }}</td><td>{{ p.rt }}</td><td>{{ p.area }}</td><td>{{ p.height }}</td><td>{{ p.area_pct }}</td></tr>
+        {% endfor %}
+      </tbody>
+      {% endif %}
+    </table>
+    <table class="grid-table kv">
+      <tbody>
+        {% for k, v in results.items() %}
+        <tr><td>{{ k.replace('_', ' ') }}</td><td>{{ v }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>What was learned</h2>
+    {% if run.learning %}
+      <blockquote class="learning">{{ run.learning }}</blockquote>
+    {% else %}
+      <p class="empty">No learning note — successful run.</p>
+    {% endif %}
+
+    {% if not run.published %}
+    <h2>Publish to shared ledger</h2>
+    <p class="sub">Outcome and learning note will be visible to every LabLedger user; your raw files stay private.</p>
+    <form class="form compact" method="post" action="{{ url_for('run_publish', run_id=run.id) }}">
+      <label class="check"><input type="checkbox" name="anon" checked> Anonymize my lab name</label>
+      <button class="btn primary" type="submit" {% if not run.outcome or (run.outcome != 'success' and not run.learning) %}disabled{% endif %}>Publish this run</button>
+      {% if not run.outcome or (run.outcome != 'success' and not run.learning) %}
+      <p class="hint">Outcome{% if run.outcome != 'success' %} + learning note{% endif %} required before publishing.</p>
+      {% endif %}
+    </form>
+    {% endif %}
+  </section>
+</div>
+
+<section>
+  <h2>AI analyst</h2>
+  <div class="panelbar">
+    <span class="hint">engine: {{ ai_provider.label }}</span>
+    <form method="post" action="{{ url_for('ai_analyze_run', run_id=run.id) }}">
+      <button class="btn" type="submit">Run AI analysis</button>
+    </form>
+  </div>
+  {% for n in ai_notes %}
+  <div class="ainote">
+    <div class="ainote-head"><span class="mono">{{ n.created_at }}</span> <span class="chip">{{ n.provider }}</span></div>
+    <p>{{ n.summary }}</p>
+    <ul>
+      {% for f in json.loads(n.findings_json) %}
+      <li class="sev-{{ f.severity }}">({{ f.severity }}) {{ f.text }}</li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% else %}
+  <p class="empty">No analysis yet — click “Run AI analysis”.</p>
+  {% endfor %}
+</section>
+
+<section>
+  <h2>Bot notes <span class="hint">{{ matching_bots|length }} bot(s) match this record</span></h2>
+  {% if matching_bots %}
+  <p class="hint">Matching: {% for b in matching_bots %}<span class="chip">{{ b.name }} ({{ b.kind }})</span> {% endfor %}</p>
+  {% endif %}
+  <form method="post" action="{{ url_for('bots_review', kind='run', target_id=run.id) }}" class="inlineform">
+    <button class="btn" type="submit">Run matching bots now</button>
+  </form>
+  <div class="botfeed">
+    {% for n in bot_notes %}
+    <div class="botnote">
+      <div class="botnote-head">
+        <strong>{{ n.bot_name }}</strong>
+        <span class="chip">{{ n.kind }} · {{ n.scope }}</span>
+        <span class="mono">{{ n.created_at }}</span>
+      </div>
+      <pre>{{ n.body }}</pre>
+    </div>
+    {% else %}
+    <p class="empty">No bot notes yet.</p>
+    {% endfor %}
+  </div>
+</section>
+
+<section>
+  <h2>Append-only audit trail</h2>
+  <table class="grid-table">
+    <thead><tr><th>#</th><th>Time (UTC)</th><th>Actor</th><th>Action</th><th>Detail</th><th>Hash</th></tr></thead>
+    <tbody>
+      {% for e in events %}
+      <tr>
+        <td>{{ loop.index }}</td><td class="mono">{{ e.ts }}</td><td>{{ e.actor }}</td>
+        <td class="mono">{{ e.action }}</td><td>{{ e.detail }}</td>
+        <td class="mono">{{ e.event_hash[:12] }}…</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}

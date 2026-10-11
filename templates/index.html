@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<section class="hero">
+  <div>
+    <h1>Analytical runs, both outcomes, one ledger</h1>
+    <p>Record UV-Vis, HPLC and GC runs, capture <strong>why</strong> they failed or succeeded, and publish them so other labs stop repeating your mistakes.</p>
+  </div>
+  <div class="hero-actions">
+    <a class="btn primary" href="{{ url_for('run_new') }}">Record a run</a>
+    <a class="btn" href="{{ url_for('ledger') }}">Browse ledger</a>
+  </div>
+</section>
+
+<section class="cards">
+  <div class="card stat"><span class="num">{{ totals.get('success', 0) }}</span><span>successful runs</span></div>
+  <div class="card stat bad"><span class="num">{{ totals.get('failure', 0) }}</span><span>failed runs captured</span></div>
+  <div class="card stat warn"><span class="num">{{ totals.get('invalid', 0) }}</span><span>invalidated runs</span></div>
+  <div class="card stat ok"><span class="num">{{ published }}</span><span>published to ledger</span></div>
+</section>
+
+<section>
+  <h2>Outcome by technique</h2>
+  {% if tstats %}
+  <table class="grid-table">
+    <thead>
+      <tr><th>Technique</th><th>Runs</th><th>Success</th><th>Failure</th><th>Invalid</th><th>Published</th><th>Success rate</th><th></th></tr>
+    </thead>
+    <tbody>
+      {% for t in tstats %}
+      {% set rate = (t.ok / t.total * 100) if t.total else 0 %}
+      <tr>
+        <td><strong>{{ t.technique }}</strong></td>
+        <td>{{ t.total }}</td>
+        <td class="ok-text">{{ t.ok }}</td>
+        <td class="bad-text">{{ t.fail }}</td>
+        <td class="warn-text">{{ t.inv or 0 }}</td>
+        <td>{{ t.pub or 0 }}</td>
+        <td>
+          <div class="bar"><div class="bar-fill" style="width: {{ rate|round(1) }}%"></div><span>{{ rate|round(1) }}%</span></div>
+        </td>
+        <td><a href="{{ url_for('ledger', technique=t.technique) }}">ledger →</a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="empty">No runs yet. <a href="{{ url_for('run_new') }}">Record the first one</a>.</p>
+  {% endif %}
+</section>
+
+<section>
+  <h2>Recent activity</h2>
+  <div class="list">
+    {% for r in recent %}
+    <a class="row" href="{{ url_for('run_detail', run_id=r.id) }}">
+      <span class="chip {{ r.outcome or 'none' }}">{{ r.outcome or 'no outcome' }}</span>
+      <span class="tech">{{ r.technique }}</span>
+      <span class="mid">{{ r.method }} · {{ r.matrix }}</span>
+      <span class="lab">{{ r.lab_name }}{% if r.published %} · published{% endif %}</span>
+      <span class="date">{{ r.created_at }}</span>
+    </a>
+    {% else %}
+    <p class="empty">Nothing recorded yet.</p>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}

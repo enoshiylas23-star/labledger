@@ -1,0 +1,256 @@
+{% extends "base.html" %}
+{% block title %}UV-Vis #{{ m.id }}{% endblock %}
+{% block content %}
+<div class="detail-head">
+  <div>
+    <div class="eyebrow">Measurement #{{ m.id }} · {{ m.mode }} · {{ m.instrument }} · {{ m.lab_name }}</div>
+    <h1>{{ m.compound }} — {{ m.judgment }}</h1>
+  </div>
+  <div class="chips">
+    <span class="chip {{ 'success' if m.judgment == 'PASS' else 'failure' }}">{{ m.judgment }}</span>
+    <span class="chip {{ 'pub' if m.source == 'virtual' else 'none' }}">{{ 'no contact' if m.source == 'virtual' else ('instrument bridge' if m.source == 'bridge' else 'sim. physical') }}</span>
+    <span class="chip pub">model rev {{ state.revision }}</span>
+    <a class="btn" href="{{ url_for('uvvis_print', mid=m.id) }}">Print report</a>
+  </div>
+</div>
+
+<section class="cards meta">
+  <div class="card"><span class="k">Concentration</span><span class="v">{{ params.conc_uM }} µM · {{ params.path_cm }} cm</span></div>
+  <div class="card"><span class="k">Range / interval</span><span class="v">{{ params.wl_start }}–{{ params.wl_end }} nm / {{ params.step_nm }} nm</span></div>
+  <div class="card"><span class="k">Speed / bandwidth</span><span class="v">{{ params.speed }} / {{ params.bandwidth_nm }} nm</span></div>
+  <div class="card"><span class="k">Operator</span><span class="v">{{ m.operator }}</span></div>
+  <div class="card"><span class="k">Recorded</span><span class="v">{{ m.created_at }}</span></div>
+  <div class="card"><span class="k">Duration</span><span class="v">{{ m.duration_ms }} ms</span></div>
+</section>
+
+<section>
+  <h2>Parameter settings</h2>
+  <table class="grid-table kv">
+    <tbody>
+      <tr><td>Wavelength range / step</td><td>{{ params.wl_start }}–{{ params.wl_end }} nm / {{ params.step_nm }} nm</td></tr>
+      <tr><td>Scan speed / spectral bandwidth</td><td>{{ params.speed }} / {{ params.bandwidth_nm }} nm</td></tr>
+      <tr><td>Smoothing</td><td>{{ params.get('smoothing', '–') }} points</td></tr>
+      <tr><td>Baseline correction</td><td>{{ {'none': 'None — raw spectra', 'blank': 'Solvent blank subtraction', 'endpoint': 'Endpoint correction (blank run, linear)', 'autozero': 'Auto-zero (subtract blank minimum)'}.get(params.get('baseline', 'none'), 'None — raw spectra') }}</td></tr>
+      <tr><td>Peak threshold / min. width</td><td>{{ ((params.get('peak_threshold', 0.004) or 0.004) * 1000) | round(1) }} mAbs / {{ params.get('min_peak_span', '–') }} nm</td></tr>
+      <tr><td>Active peak</td><td>{{ params.get('active_peak', 'auto') }}{% if params.get('active_peak_nm') %} @ {{ params['active_peak_nm'] }} nm{% endif %}</td></tr>
+      {% if m.mode == 'Quantitative' %}
+      <tr><td>Calibration fit</td><td>{{ params.get('cal_type', 'linear') }} · weighting {{ params.get('weighting', 'none') }}{{ ' · zero intercept' if params.get('no_intercept') else '' }}</td></tr>
+      <tr><td>Signal measurement</td><td>{{ params.get('meas_type', 'height') }} · report in {{ params.get('units', 'uM') }}</td></tr>
+      <tr><td>Standard levels</td><td>{{ params.get('std_levels') or 'auto (around nominal concentration)' }}</td></tr>
+      <tr><td>Unknown samples / replicates</td><td>{{ params.get('n_unknowns', 1) }} / {{ params.get('reps', 3) }}</td></tr>
+      {% endif %}
+    </tbody>
+  </table>
+</section>
+
+<section>
+  <h2>{% if m.mode == 'Quantitative' %}Calibration{% else %}Measurement trace{% endif %}</h2>
+  <div class="tracewrap">{{ m.chart|safe }}</div>
+</section>
+
+<section>
+  <h2>Comprehensive judgment</h2>
+  <table class="grid-table">
+    <thead><tr><th>Criterion</th><th>Measured</th><th>Acceptance</th><th>Result</th></tr></thead>
+    <tbody>
+      {% for c in checks %}
+      <tr>
+        <td>{{ c.name }}</td>
+        <td>{{ c.value }}</td>
+        <td>{{ c.limit }}</td>
+        <td>{% if c.pass %}<span class="ok-text">PASS</span>{% else %}<span class="bad-text">FAIL</span>{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+
+<div class="split">
+  <section>
+    <h2>Analysis result</h2>
+    <table class="grid-table kv">
+      <tbody>
+        {% for k, v in analysis.items() %}
+        <tr><td>{{ k.replace('_', ' ') }}</td><td>{{ v }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+  <section>
+    <h2>Ground truth (virtual sample)</h2>
+    {% if truth %}
+    <table class="grid-table kv">
+      <tbody>
+        {% for k, v in truth.items() %}
+        <tr><td>{{ k.replace('_', ' ') }}</td><td>{{ v }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <p class="hint">Deviations from truth are what the backend scores; repeated misses widen and then correct the model's own accuracy claims.</p>
+    {% else %}
+    <p class="empty">No ground truth for this run.</p>
+    {% endif %}
+  </section>
+</div>
+
+{% if m.mode == 'Quantitative' and data.get('calibration') %}
+<section>
+  <h2>System calibration <span class="hint">{{ data.calibration.type }} working curve</span></h2>
+  <div class="cards meta">
+    <div class="card"><span class="k">Equation</span><span class="v">{{ data.calibration.eq }}</span></div>
+    <div class="card"><span class="k">Standards</span><span class="v">{{ data.calibration.n }}</span></div>
+    <div class="card"><span class="k">r²</span><span class="v">{{ '%.5f' | format(data.calibration.r2) }}</span></div>
+    <div class="card"><span class="k">sy/x</span><span class="v">{{ '%.5f' | format(data.calibration.syx) }}</span></div>
+    <div class="card"><span class="k">LOD / LOQ</span><span class="v">{{ '%.3f' | format(data.calibration.lod) }} / {{ '%.3f' | format(data.calibration.loq) }} µM</span></div>
+    <div class="card"><span class="k">Weighting</span><span class="v">{{ data.calibration.get('weighting', params.get('weighting', 'none')) }}{{ ' · zero intercept' if data.calibration.get('no_intercept', params.get('no_intercept')) else '' }}</span></div>
+    <div class="card"><span class="k">Signal</span><span class="v">{{ data.calibration.get('meas_type', params.get('meas_type', 'height')) }} · reported in {{ data.calibration.get('units', params.get('units', 'uM')) }}</span></div>
+    <div class="card"><span class="k">Analysis peak</span><span class="v">{{ analysis.get('active_peak_nm', params.get('method_wl', '–')) }} nm</span></div>
+  </div>
+  <table class="grid-table">
+    <thead><tr><th>Level</th><th>Concentration (µM)</th><th>Absorbance (A)</th><th>Accepted</th></tr></thead>
+    <tbody>
+      {% for s in data.standards %}
+      <tr>
+        <td>{{ s.get('level', s['conc_uM']) }}</td>
+        <td>{{ s['conc_uM'] }}</td>
+        <td>{{ s['abs'] }}</td>
+        <td>{% if s.get('accepted') %}<span class="ok-text">✓ in range</span>{% else %}<span class="bad-text">outside</span>{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endif %}
+
+{% if m.mode == 'Quantitative' and data.get('unknowns') %}
+<section>
+  <h2>Unknown samples <span class="hint">reported in {{ analysis.get('units', 'uM') }}</span></h2>
+  <table class="grid-table">
+    <thead><tr><th>Sample</th><th>Peak λ (nm)</th><th>Mean A</th><th>SD</th><th>RSD %</th><th>Found ({{ analysis.get('units', 'uM') }})</th><th>Recovery %</th><th>Verdict</th></tr></thead>
+    <tbody>
+      {% for u in data.get('unknowns', []) %}
+      <tr>
+        <td>{{ u.sample }}</td>
+        <td>{{ u.get('active_peak_nm', '–') }}</td>
+        <td>{{ '%.4f' | format(u.mean_abs) }}</td>
+        <td>{{ '%.4f' | format(u.sd) }}</td>
+        <td>{{ '%.2f' | format(u.rsd_pct) }}</td>
+        <td>{{ u.get('found_val', '%.2f' | format(u.found_uM)) }} {{ u.get('found_unit', 'uM') }}</td>
+        <td>{{ '%.1f' | format(u.recovery_pct) }}</td>
+        <td>{% if u.get('accepted') %}<span class="ok-text">ACCEPTED</span>{% else %}<span class="bad-text">REJECTED</span>{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p class="hint">A sample is accepted when recovery is within 98–102% and repeatability (RSD) is at most 2%.</p>
+</section>
+{% endif %}
+
+{% if analysis.get('n_peaks') %}
+<section id="peaks">
+  <h2>Detected peaks <span class="hint">{{ analysis.get('n_peaks') }} found · threshold {{ ((params.get('peak_threshold', 0.004) or 0.004) * 1000) | round(1) }} mAbs · analysis at {{ analysis.get('active_peak_nm', '–') }} nm</span></h2>
+  {% if data.get('baseline', {}).get('applied') %}
+  <p class="hint">Baseline correction applied ({{ data.get('baseline', {}).get('method', 'solvent blank') }}) — peak metrics are taken from the corrected trace.</p>
+  {% endif %}
+  {% if m.mode in ['Spectrum', 'Quantitative'] %}
+  <form method="post" action="{{ url_for('uvvis_peak', mid=m.id) }}" id="peakpick">
+  {% endif %}
+  <table class="grid-table">
+    <thead><tr>
+      {% if m.mode in ['Spectrum', 'Quantitative'] %}<th>Pick</th>{% endif %}
+      <th>Peak</th><th>λ (nm)</th><th>Height (A)</th><th>Area (A·nm)</th><th>Width (nm)</th><th>FWHM (nm)</th><th>Purity</th><th>Active</th></tr></thead>
+    <tbody>
+      {% for pk in data.get('peaks', []) %}
+      <tr>
+        {% if m.mode in ['Spectrum', 'Quantitative'] %}
+        <td><input type="radio" name="peak_wl" value="{{ pk['wl'] }}" {% if pk.get('active') %}checked{% endif %} aria-label="pick {{ pk.wl }} nm"></td>
+        {% endif %}
+        <td>{{ loop.index }}</td>
+        <td>{{ '%.2f' | format(pk['wl']) }}</td>
+        <td>{{ '%.4f' | format(pk['height_A']) }}</td>
+        <td>{{ '%.3f' | format(pk['area_A_nm']) }}</td>
+        <td>{{ '%.1f' | format(pk['width_nm']) }}</td>
+        <td>{{ '%.1f' | format(pk['fwhm_nm']) }}</td>
+        <td>{{ (pk['purity'] * 100) | round(0) }}%</td>
+        <td>{% if pk.get('active') %}<span class="chip success act-peak">ACTIVE</span>{% else %}<span class="chip none">—</span>{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p class="hint">Purity = correlation of the isolated peak region against the reference library spectrum for {{ m.compound }}.</p>
+  {% if m.mode in ['Spectrum', 'Quantitative'] %}
+  <div class="runbar tight">
+    <label class="inlinelabel">Manual λ (nm) <input name="manual_wl" type="number" step="0.1" placeholder="overrides the radio"></label>
+    <button class="btn primary" type="submit">↻ Re-analyze at selected peak</button>
+    <span class="hint">Re-scales absorbances by the ε-ratio, refits the working curve and rebuilds the chart — the original PASS/FAIL judgment is never altered, and the change is appended to the hash-chained log.</span>
+  </div>
+  </form>
+  {% endif %}
+</section>
+{% endif %}
+
+{% if errors %}
+<section>
+  <h2>Acknowledged model mistakes on this run</h2>
+  {% for e in errors %}
+  <div class="acknote {{ e.severity }}">
+    <strong>{{ e.label }}:</strong> the model promised ±{{ e.promised }} {{ e.unit }} but observed {{ e.observed }} {{ e.unit }}.
+    <span>Cause: {{ e.cause }}.</span>
+    <span>Correction applied: {{ e.action }}.</span>
+    <span class="ok-text">Acknowledged and stored.</span>
+  </div>
+  {% endfor %}
+</section>
+{% endif %}
+
+<section>
+  <h2>AI analyst <span class="hint">{{ ai_provider.label }}</span></h2>
+  <form method="post" action="{{ url_for('ai_analyze_uv', mid=m.id) }}" class="inlineform">
+    <button class="btn" type="submit">Run AI analysis</button>
+  </form>
+  {% for n in ai_notes %}
+  <div class="ainote">
+    <div class="ainote-head"><span class="mono">{{ n.created_at }}</span> <span class="chip">{{ n.provider }}</span></div>
+    <p>{{ n.summary }}</p>
+    <ul>
+      {% for f in json.loads(n.findings_json) %}
+      <li class="sev-{{ f.severity }}">({{ f.severity }}) {{ f.text }}</li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% else %}
+  <p class="empty">No analysis yet.</p>
+  {% endfor %}
+
+  <h2>Bot notes</h2>
+  <form method="post" action="{{ url_for('bots_review', kind='uv', target_id=m.id) }}" class="inlineform">
+    <button class="btn" type="submit">Run matching bots now</button>
+  </form>
+  <div class="botfeed">
+    {% for n in bot_notes %}
+    <div class="botnote">
+      <div class="botnote-head"><strong>{{ n.bot_name }}</strong> <span class="chip">{{ n.kind }} · {{ n.scope }}</span> <span class="mono">{{ n.created_at }}</span></div>
+      <pre>{{ n.body }}</pre>
+    </div>
+    {% else %}
+    <p class="empty">No bot notes yet.</p>
+    {% endfor %}
+  </div>
+</section>
+
+<section>
+  <h2>Measurement log (hash-chained)</h2>
+  <table class="grid-table">
+    <thead><tr><th>#</th><th>Action</th><th>Detail</th><th>Hash</th></tr></thead>
+    <tbody>
+      {% for e in events %}
+      <tr><td>{{ loop.index }}</td><td class="mono">{{ e.action }}</td><td>{{ e.detail }}</td><td class="mono">{{ e.hash[:14] }}…</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p style="margin-top:14px">
+    <a class="btn" href="{{ url_for('uvvis_csv', mid=m.id) }}">⬇ Export CSV (Excel-compatible)</a>
+    <a class="btn" href="{{ url_for('uvvis_console') }}">New measurement</a>
+  </p>
+</section>
+{% endblock %}

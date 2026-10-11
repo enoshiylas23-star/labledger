@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}AI analyst{% endblock %}
+{% block content %}
+<h1>AI analyst</h1>
+<p class="sub">Ask questions across your runs and UV-Vis measurements, or generate saved analyses on individual records.
+Engine: <strong>{{ provider.label }}</strong> ({% if provider.provider == 'local' %}built-in expert rules, offline — add <code>XAI_API_KEY</code> to enable Grok{% else %}live LLM{% endif %}).</p>
+
+<section>
+  <form class="filters" method="get">
+    <input name="q" value="{{ question }}" placeholder="e.g. which runs failed on resolution? / caffeine lambda max? / what did lab 2 learn?">
+    <button class="btn primary" type="submit">Ask</button>
+  </form>
+  {% if answer %}
+  <div class="ainote">
+    <div class="ainote-head"><strong>Q:</strong> {{ question }} <span class="chip">{{ answer.provider }}</span></div>
+    <pre class="answer">{{ answer.answer }}</pre>
+    {% if answer.runs %}
+    <p class="hint">Matching runs:
+      {% for r in answer.runs %}<a href="{{ url_for('run_detail', run_id=r.id) }}">#{{ r.id }}</a>{% if not loop.last %}, {% endif %}{% endfor %}
+    </p>
+    {% endif %}
+    {% if answer.uv %}
+    <p class="hint">Matching measurements:
+      {% for u in answer.uv %}<a href="{{ url_for('uvvis_result', mid=u.id) }}">#{{ u.id }}</a>{% if not loop.last %}, {% endif %}{% endfor %}
+    </p>
+    {% endif %}
+  </div>
+  {% endif %}
+</section>
+
+<div class="split">
+  <section>
+    <h2>Recent saved analyses</h2>
+    <table class="grid-table">
+      <thead><tr><th>Target</th><th>Summary</th><th>Engine</th><th>When</th></tr></thead>
+      <tbody>
+        {% for n in notes %}
+        <tr>
+          <td>{% if n.t == 'run' %}<a href="{{ url_for('run_detail', run_id=n.target_id) }}">run #{{ n.target_id }}</a>{% else %}<a href="{{ url_for('uvvis_result', mid=n.target_id) }}">UV #{{ n.target_id }}</a>{% endif %}</td>
+          <td>{{ n.summary[:120] }}{% if n.summary|length > 120 %}…{% endif %}</td>
+          <td class="mono">{{ n.provider }}</td>
+          <td class="mono">{{ n.created_at }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4" class="empty">No analyses yet — open a run and click “Run AI analysis”.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>Analyze a record now</h2>
+    <div class="list">
+      {% for r in runs %}
+      <div class="row">
+        <span class="tech">{{ r.technique }}</span>
+        <span class="mid">#{{ r.id }} {{ r.method }} {% if r.project %}<span class="chip">{{ r.project }}</span>{% endif %}</span>
+        <span class="date">{{ r.outcome or '—' }}</span>
+        <form method="post" action="{{ url_for('ai_analyze_run', run_id=r.id) }}" class="inlineform">
+          <button class="btn" type="submit">Analyze</button>
+        </form>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+</div>
+{% endblock %}

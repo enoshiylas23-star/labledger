@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Bot {{ bot.name }}{% endblock %}
+{% block content %}
+<div class="detail-head">
+  <div>
+    <div class="eyebrow">Bot #{{ bot.id }} · {{ bot.kind }} scope · {{ bot.scope }}</div>
+    <h1>{{ bot.name }}</h1>
+  </div>
+  <div class="chips">
+    <span class="chip {{ 'pub' if bot.active else 'none' }}">{{ 'active' if bot.active else 'paused' }}</span>
+    <span class="chip">{{ provider.label }}</span>
+  </div>
+</div>
+
+{% if bot.mandate %}
+<blockquote class="learning">{{ bot.mandate }}</blockquote>
+{% endif %}
+
+<section>
+  <h2>Note feed <span class="hint">{{ feed|length }} most recent</span></h2>
+  <div class="botfeed">
+    {% for n in feed %}
+    <div class="botnote">
+      <div class="botnote-head">
+        {% if n.target_type == 'run' %}
+        <a href="{{ url_for('run_detail', run_id=n.target_id) }}"><strong>run #{{ n.target_id }}</strong></a>
+        {% else %}
+        <a href="{{ url_for('uvvis_result', mid=n.target_id) }}"><strong>UV #{{ n.target_id }}</strong></a>
+        {% endif %}
+        <span class="mono">{{ n.created_at }}</span>
+      </div>
+      <pre>{{ n.body }}</pre>
+    </div>
+    {% else %}
+    <p class="empty">No notes yet — this bot posts when a matching record appears.</p>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}

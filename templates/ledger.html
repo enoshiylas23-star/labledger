@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Shared ledger{% endblock %}
+{% block content %}
+<h1>Shared ledger</h1>
+<p class="sub">Published runs from every lab — successes <em>and</em> failures. Search before you develop a method; publish after, whatever the outcome.</p>
+
+<form class="filters" method="get">
+  <input name="q" value="{{ q }}" placeholder="search method, matrix, instrument, learning…">
+  <select name="technique">
+    <option value="">All techniques</option>
+    {% for t in TECHNIQUES %}
+    <option value="{{ t }}" {% if technique == t %}selected{% endif %}>{{ t }}</option>
+    {% endfor %}
+  </select>
+  <select name="outcome">
+    <option value="">All outcomes</option>
+    {% for o in ['success', 'failure', 'invalid'] %}
+    <option value="{{ o }}" {% if outcome == o %}selected{% endif %}>{{ o }}</option>
+    {% endfor %}
+  </select>
+  <button class="btn primary" type="submit">Filter</button>
+</form>
+
+<div class="cards">
+  <div class="card stat ok"><span class="num">{{ counts.get('success', 0) }}</span><span>successes</span></div>
+  <div class="card stat bad"><span class="num">{{ counts.get('failure', 0) }}</span><span>failures</span></div>
+  <div class="card stat warn"><span class="num">{{ counts.get('invalid', 0) }}</span><span>invalid</span></div>
+</div>
+
+<div class="list ledger">
+  {% for r in rows %}
+  <a class="row wide" href="{{ url_for('run_detail', run_id=r.id) }}">
+    <span class="chip {{ r.outcome }}">{{ r.outcome }}</span>
+    <span class="tech">{{ r.technique }}</span>
+    <span class="mid">
+      <strong>{{ r.method }}</strong> · {{ r.matrix }} · {{ r.instrument }}<br>
+      {% if r.learning %}<span class="learn">💡 {{ r.learning }}</span>{% endif %}
+    </span>
+    <span class="lab">{{ r.lab_name }} · {{ r.lab_kind }}</span>
+    <span class="date">{{ r.published_at }}</span>
+  </a>
+  {% else %}
+  <p class="empty">Nothing published yet. Record a run and publish it.</p>
+  {% endfor %}
+</div>
+{% endblock %}

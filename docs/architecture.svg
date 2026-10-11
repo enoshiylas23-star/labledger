@@ -1,0 +1,83 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 560" width="960" height="560" font-family="Segoe UI, Helvetica, Arial, sans-serif" role="img" aria-label="LabLedger architecture">
+  <defs>
+    <style>
+      .box { fill: #161d27; stroke: #2a3646; stroke-width: 1.5; rx: 12; }
+      .box.accent { stroke: #4cc2ff; }
+      .box.ok { stroke: #3ddc97; }
+      .box.warn { stroke: #ffc857; }
+      .t { fill: #e6edf6; font-size: 15px; font-weight: 600; }
+      .s { fill: #93a3b8; font-size: 12px; }
+      .h { fill: #4cc2ff; font-size: 12px; font-weight: 700; letter-spacing: .08em; }
+      .line { stroke: #46586e; stroke-width: 1.6; fill: none; marker-end: url(#arrow); }
+      .line.bi { marker-start: url(#arrow-b); }
+      .lbl { fill: #93a3b8; font-size: 11px; }
+      .bg { fill: #0f141b; }
+    </style>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#46586e"/>
+    </marker>
+    <marker id="arrow-b" viewBox="0 0 10 10" refX="1" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M10,0 L0,5 L10,10 z" fill="#46586e"/>
+    </marker>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="960" height="560"/>
+
+  <!-- Browser / clients -->
+  <rect class="box accent" x="40" y="40" width="360" height="150" rx="12"/>
+  <text class="h" x="60" y="68">BROWSER-FIRST UI</text>
+  <text class="t" x="60" y="94">Dashboard · Shared ledger · Record run</text>
+  <text class="t" x="60" y="118">UV-Vis console (5 tabs) · World library</text>
+  <text class="t" x="60" y="142">Model integrity · AI analyst · Bots</text>
+  <text class="s" x="60" y="170">Semantic HTML + vanilla JS + inline SVG charts</text>
+
+  <!-- External clients -->
+  <rect class="box" x="560" y="40" width="360" height="150" rx="12"/>
+  <text class="h" x="580" y="68">INSTRUMENTS &amp; API CLIENTS</text>
+  <text class="t" x="580" y="94">Real spectrometer driver (CLI)</text>
+  <text class="t" x="580" y="118">TCP 127.0.0.1:5056  ·  HTTP POST /api/ingest</text>
+  <text class="s" x="580" y="146">Per-instrument API key · work queue</text>
+  <text class="s" x="580" y="170">GET /api/ledger · /api/uvvis · /healthz</text>
+
+  <!-- Flask app -->
+  <rect class="box ok" x="40" y="240" width="880" height="130" rx="12"/>
+  <text class="h" x="60" y="268">FLASK APPLICATION — app.py (single file, no build step)</text>
+  <text class="t" x="60" y="296">routes · form parsing · audit-trail writer · model-integrity loop</text>
+  <text class="t" x="60" y="320">SHA-256 hash-chained event log · calibration library · print reports</text>
+  <text class="s" x="60" y="348">JSON API · CSV export · health check</text>
+
+  <!-- modules -->
+  <rect class="box" x="40" y="420" width="200" height="100" rx="12"/>
+  <text class="t" x="60" y="450">uvsim.py</text>
+  <text class="s" x="60" y="474">Beer–Lambert physics,</text>
+  <text class="s" x="60" y="492">quantitation, peaks,</text>
+  <text class="s" x="60" y="510">model corrections</text>
+
+  <rect class="box" x="260" y="420" width="180" height="100" rx="12"/>
+  <text class="t" x="278" y="450">bridge.py</text>
+  <text class="s" x="278" y="474">ingest, API-key auth,</text>
+  <text class="s" x="278" y="492">queue</text>
+
+  <rect class="box warn" x="460" y="420" width="180" height="100" rx="12"/>
+  <text class="t" x="478" y="450">ai.py</text>
+  <text class="s" x="478" y="474">LLM note-taker,</text>
+  <text class="s" x="478" y="492">offline expert engine</text>
+
+  <rect class="box" x="660" y="420" width="260" height="100" rx="12"/>
+  <text class="t" x="680" y="450">bots.py</text>
+  <text class="s" x="680" y="474">project / researcher / company</text>
+  <text class="s" x="680" y="492">reviewers of every run</text>
+
+  <!-- storage -->
+  <rect class="box" x="40" y="560" width="0" height="0"/>
+  <text class="lbl" x="480" y="392" text-anchor="middle">SQLite — labs · runs · uv_measurements · calibrations · audit · bridge_queue · model_state</text>
+
+  <!-- arrows -->
+  <path class="line" d="M220,190 L220,240"/>
+  <path class="line" d="M740,190 L740,240"/>
+  <path class="line bi" d="M220,370 L140,420"/>
+  <path class="line bi" d="M340,370 L340,420"/>
+  <path class="line bi" d="M480,370 L540,420"/>
+  <path class="line bi" d="M640,370 L760,420"/>
+  <path class="line" d="M480,560 L480,560"/>
+</svg>

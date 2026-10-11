@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}LabLedger{% endblock %} · LabLedger</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<header class="topbar print-hidden">
+  <div class="brand"><span class="mark">◧</span> LabLedger <span class="tag">publish success &amp; failure</span></div>
+  <nav>
+    <a href="{{ url_for('index') }}">Dashboard</a>
+    <a href="{{ url_for('run_new') }}">Record run</a>
+    <a href="{{ url_for('uvvis_console') }}">UV-Vis console</a>
+    <a href="{{ url_for('ledger') }}">Shared ledger</a>
+    <a href="{{ url_for('instruments_page') }}">Instruments</a>
+    <a href="{{ url_for('ai_page') }}">AI analyst</a>
+    <a href="{{ url_for('bots_page') }}">Bots</a>
+    <a href="{{ url_for('world') }}">World data</a>
+    <a href="{{ url_for('uvvis_model') }}">Model integrity</a>
+  </nav>
+  <form class="labswitch" method="post" action="{{ url_for('set_lab', lab_id=0) }}" onsubmit="return false">
+    <label>Active lab</label>
+    <select onchange="fetch('/lab/'+this.value,{method:'POST'}).then(()=>location.reload())">
+      {% for l in labs %}
+      <option value="{{ l.id }}" {% if active_lab and l.id == active_lab.id %}selected{% endif %}>{{ l.name }}</option>
+      {% endfor %}
+    </select>
+  </form>
+</header>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% for cat, msg in messages %}
+    <div class="flash {{ cat }} print-hidden">{{ msg }}</div>
+  {% endfor %}
+{% endwith %}
+
+<main>
+{% block content %}{% endblock %}
+</main>
+
+<footer class="print-hidden">
+  LabLedger prototype · every run, success or failure, becomes a citable record ·
+  API: <code>/api/ledger</code>
+</footer>
+{% block extra %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}{{ c.name }} datasheet{% endblock %}
+{% block content %}
+<div class="detail-head">
+  <div>
+    <div class="eyebrow">Built-in UV data sheet · reference library</div>
+    <h1>{{ c.name }}</h1>
+  </div>
+  <div class="chips">
+    <a class="btn primary" href="{{ url_for('uvvis_console', compound=c['name'], mode='Spectrum') }}">Run virtually →</a>
+    <a class="btn" href="{{ url_for('world') }}">← World data</a>
+  </div>
+</div>
+
+<section class="cards meta">
+  <div class="card"><span class="k">Formula</span><span class="v">{{ c.formula }}</span></div>
+  <div class="card"><span class="k">CAS</span><span class="v">{{ c.cas }}</span></div>
+  <div class="card"><span class="k">λmax</span><span class="v">{{ c.lambda_max }} nm</span></div>
+  <div class="card"><span class="k">Molar absorptivity</span><span class="v">{{ '{:,}'.format(c.eps) }} L·mol⁻¹·cm⁻¹</span></div>
+  <div class="card"><span class="k">Solvent</span><span class="v">{{ c.solvent }}</span></div>
+  <div class="card"><span class="k">Typical use</span><span class="v">{{ c.use }}</span></div>
+</section>
+
+<section>
+  <h2>Reference spectrum</h2>
+  <div class="tracewrap">{{ chart|safe }}</div>
+</section>
+
+<div class="split">
+  <section>
+    <h2>Band table</h2>
+    <table class="grid-table">
+      <thead><tr><th>Band centre (nm)</th><th>Relative strength</th><th>Half-width (nm)</th></tr></thead>
+      <tbody>
+        {% for mu, rel, sig in bands %}
+        <tr><td>{{ mu }}</td><td>{{ rel }}</td><td>{{ sig }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+  <section>
+    <h2>Analyst notes</h2>
+    <blockquote class="learning">{{ c.notes }}</blockquote>
+    <p class="hint">Method wavelength for quantitative work: <strong>{{ c.method_wl }} nm</strong>. Default concentration for A ≈ 0.8 in a 1 cm cell: <strong>{{ (800000 / c.eps) | round(1) }} µM</strong>.</p>
+  </section>
+</div>
+{% endblock %}
